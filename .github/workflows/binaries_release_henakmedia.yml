@@ -1,0 +1,104 @@
+# henakmedia fork release builder.
+#
+# Upstream's binaries_release*.yml (windows/linux/darwin/freebsd/openbsd matrix)
+# have been REMOVED from this fork so they can't stampede on our tags racing to
+# publish colliding assets. This single workflow is the only tag-triggered
+# publisher here, and it builds only what the homelab needs: linux amd64 + arm64.
+#
+# Triggers:
+#   - MANUAL from the Actions tab ("Run workflow" -> pick/create a Release tag and
+#     which platform asset you want tagged for that release; simplest is the
+#     default below).  <-- primary use case
+#   - push of a tag matching v* (e.g. v4.47-henak.1), which builds BOTH archs.
+#
+# The EC 10+4 -> 4+2 change is baked into the fork's source constants, so no
+# build flags are needed; the binary is just `weed`.
+
+name: "release: seaweedfs weed binaries for henakmedia (linux amd64 + arm64)"
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "GitHub Release tag (created if missing). Leave empty to use the version from source."
+        required: false
+        type: string
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+
+  build:
+    name: "build weed (${{ matrix.goos }}/${{ matrix.goarch }})"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        goos: [linux]
+        goarch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Go
+        uses: actions/setup-go@0a12ed9d6a8ab950c8fb05c9541cbac1238c148b # v5.0.2
+        with:
+          go-version-file: go.mod
+
+      - name: Build static weed binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+          COMMIT: ${{ github.sha }}
+        run: |
+          cd weed
+          go build -trimpath -ldflags "-s -w -extldflags -static -X github.com/seaweedfs/seaweedfs/weed/util/version.COMMIT=${COMMIT}" .
+
+      - name: Wrap binary
+        run: |
+          mkdir -p dist
+          mvp="${{ format('weed_linux_{0}', matrix.goarch) }}"
+          cp weed/weed "dist/${mvp}"
+          chmod +x "dist/${mvp}"
+          echo "mvp=${mvp}" >> "$GITHUB_ENV"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fddac6c9b92cbc29d1f5 # v4.6.0
+        with:
+          name: weed_linux_${{ matrix.goarch }}
+          path: dist/weed_linux_${{ matrix.goarch }}
+          if-no-files-found: error
+
+  publish:
+    name: "publish GitHub Release"
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Print built assets
+        run: |
+          ls -la dist
+          sha256sum dist/*
+
+      - name: Create/update GitHub Release with assets
+        uses: softprops/action-gh-release@69320dbe00506b9f7f7d3a923477ffe97a1f1da5 # v2.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
+          name: ${{ inputs.release_tag || github.ref_name }}
+          draft: false
+          prerelease: true
+          generate_release_notes: true
+          files: dist/weed_linux_*
