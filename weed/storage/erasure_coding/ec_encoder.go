@@ -18,8 +18,13 @@ import (
 )
 
 const (
-	DataShardsCount             = 10
-	ParityShardsCount           = 4
+	// henakmedia fork (4.47): EC ratio tuned for a 6-node storage fleet
+	// (4 data + 2 parity = 6 shards, 1 shard per node). Upstream defaults are
+	// 10 data + 4 parity = 14 shards. All code in this repo derives shard
+	// counts from these two constants, so no other EC code needed changes.
+	// Tolerates loss of any 2 of 6 volume servers. Storage overhead 1.5x.
+	DataShardsCount             = 4
+	ParityShardsCount           = 2
 	TotalShardsCount            = DataShardsCount + ParityShardsCount
 	MaxShardCount               = 32 // Maximum number of shards since ShardBits is uint32 (bits 0-31)
 	MinTotalDisks               = TotalShardsCount/ParityShardsCount + 1
