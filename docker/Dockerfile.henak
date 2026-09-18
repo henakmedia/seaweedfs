@@ -1,0 +1,37 @@
+# henakmedia fork build (EC 4+2). Builds `weed` from the LOCAL checkout
+# (the upstream Dockerfile.go_build git-clones github.com/seaweedfs/seaweedfs,
+# which would silently drop this fork's EC 10+4 -> 4+2 change).
+#
+# Multi-arch: build each platform natively (amd64 on x64 runners, arm64 on
+# arm64 runners) via --platform build args — no QEMU — then merge manifests.
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS builder
+RUN apk add --no-cache git
+WORKDIR /src
+COPY go.mod go.sum ./
+COPY weed ./weed
+RUN --mount=type=cache,target=/go/pkg/mod \
+    CGO_ENABLED=0 go build -mod=mod -trimpath \
+        -ldflags "-s -w -extldflags -static" \
+        -o /go/bin/weed ./weed
+
+FROM alpine:3.23
+LABEL org.opencontainers.image.title="SeaweedFS (henakmedia EC 4+2 fork)" \
+      org.opencontainers.image.description="SeaweedFS 4.47 with EC ratio 4 data + 2 parity (6 shards, 1 per node) for the 6-node henak huayi opi fleet" \
+      org.opencontainers.image.source="https://github.com/henakmedia/seaweedfs"
+COPY --from=builder /go/bin/weed /usr/bin/weed
+RUN mkdir -p /etc/seaweedfs
+COPY docker/filer.toml /etc/seaweedfs/filer.toml
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN apk upgrade --no-cache && \
+    apk add --no-cache fuse curl su-exec && \
+    addgroup -g 1000 seaweed && \
+    adduser -D -u 1000 -G seaweed seaweed && \
+    chmod 755 /entrypoint.sh
+# volume grpc/http, filer grpc/http, master grpc/http, s3, webdav
+EXPOSE 18080 8080 18888 8888 19333 9333 8333 7333
+RUN mkdir -p /data/filerldb2 && \
+    chown -R seaweed:seaweed /data /etc/seaweedfs
+VOLUME /data
+WORKDIR /data
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["mini", "-dir=/data"]
