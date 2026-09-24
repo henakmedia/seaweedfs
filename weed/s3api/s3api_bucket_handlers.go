@@ -79,6 +79,20 @@ func (s3a *S3ApiServer) ListBucketsHandler(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
+	// With authentication disabled the AllowAll admin identity is applied to
+	// every request, but the auth middleware never runs to record it in the
+	// context. Mirror it here so unrestricted bucket listing matches the
+	// unrestricted access everywhere else. Anonymous requests against an
+	// auth-enabled gateway still see no buckets.
+	if identity == nil && !s3a.iam.isEnabled() {
+		identity = &Identity{
+			Name:    "admin",
+			Account: &AccountAdmin,
+			Actions: []Action{s3_constants.ACTION_ADMIN},
+		}
+		identityId = identity.Name
+	}
+
 	maxBuckets, prefix, startAfter, errCode := getListBucketsArgs(r.URL.Query())
 	if errCode != s3err.ErrNone {
 		s3err.WriteErrorResponse(w, r, errCode)
@@ -87,7 +101,8 @@ func (s3a *S3ApiServer) ListBucketsHandler(w http.ResponseWriter, r *http.Reques
 
 	var buckets []ListAllMyBucketsEntry
 	var nextToken string
-	// Unauthenticated users should not see any buckets
+	// Anonymous requests (or a nil identity) show no buckets; the allow-all
+	// admin injected above is the only way to reach here unauthenticated.
 	if identity != nil {
 		var err error
 		if fromIndex, granted := s3a.iam.canListBucketsFromOwnerIndex(r, identity); fromIndex && s3a.bucketOwnerIndexReady() {

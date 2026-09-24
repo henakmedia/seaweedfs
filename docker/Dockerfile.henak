@@ -2,15 +2,17 @@
 # (the upstream Dockerfile.go_build git-clones github.com/seaweedfs/seaweedfs,
 # which would silently drop this fork's EC 10+4 -> 4+2 change).
 #
-# Multi-arch: build each platform natively (amd64 on x64 runners, arm64 on
-# arm64 runners) via --platform build args — no QEMU — then merge manifests.
+# Multi-arch: the builder stage always runs natively on BUILDPLATFORM (no
+# QEMU cross-compile) while GOARCH=$TARGETARCH cross-compiles a static
+# CGO_ENABLED=0 binary for the requested target.
 FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS builder
+ARG TARGETARCH
 RUN apk add --no-cache git
 WORKDIR /src
 COPY go.mod go.sum ./
 COPY weed ./weed
 RUN --mount=type=cache,target=/go/pkg/mod \
-    CGO_ENABLED=0 go build -mod=mod -trimpath \
+    CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -mod=mod -trimpath \
         -ldflags "-s -w -extldflags -static" \
         -o /go/bin/weed ./weed
 
