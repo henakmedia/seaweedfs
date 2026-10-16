@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestMinusParityShardsRatio covers the data/parity split for the default 10+4
-// layout and other ratios. The pre-fix code hardcoded ids 10..13 as parity,
+// TestMinusParityShardsRatio covers the data/parity split for the fork default
+// 4+2 layout and other ratios. The pre-fix code hardcoded ids 10..13 as parity,
 // which for a wide ratio (12+4, 16+6) DROPPED real data ids >= 10 and for a
 // narrow ratio (9+3) kept parity id 9. The method now takes the data-shard
 // count (<= 0 falls back to DataShardsCount).
@@ -26,8 +26,9 @@ func TestMinusParityShardsRatio(t *testing.T) {
 		expectedCount int
 		expectedIds   []ShardId
 	}{
-		{"default 10+4 all present", DataShardsCount, all(14), 10, all(10)},
-		{"zero ratio falls back to default", 0, all(14), 10, all(10)},
+		{"default 4+2 all present", DataShardsCount, all(TotalShardsCount), DataShardsCount, all(DataShardsCount)},
+		{"zero ratio falls back to default", 0, all(TotalShardsCount), DataShardsCount, all(DataShardsCount)},
+		{"10+4 all present", 10, all(14), 10, all(10)},
 		{"9+3 all present", 9, all(12), 9, all(9)},
 		{"9+3 drops parity id 9", 9, []ShardId{0, 1, 2, 9, 10, 11}, 3, []ShardId{0, 1, 2}},
 		{"12+4 keeps data ids >= 10", 12, all(16), 12, all(12)},

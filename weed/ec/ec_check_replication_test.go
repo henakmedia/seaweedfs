@@ -21,15 +21,15 @@ func TestEcCheckReplication(t *testing.T) {
 					EcShardInfos: []*master_pb.VolumeEcShardInformationMessage{
 						{
 							Id:          1,
-							EcIndexBits: 0b0000000011111,
+							EcIndexBits: 0b000111, // shards 0-2
 						},
 						{
 							Id:          2,
-							EcIndexBits: 0b0000000011111,
+							EcIndexBits: 0b000111, // shards 0-2
 						},
 						{
 							Id:          3,
-							EcIndexBits: 0b11111111111111,
+							EcIndexBits: 0b111111, // all 4+2 shards
 						},
 					},
 				},
@@ -42,15 +42,15 @@ func TestEcCheckReplication(t *testing.T) {
 					EcShardInfos: []*master_pb.VolumeEcShardInformationMessage{
 						{
 							Id:          1,
-							EcIndexBits: 0b11111111100000,
+							EcIndexBits: 0b111000, // shards 3-5
 						},
 						{
 							Id:          2,
-							EcIndexBits: 0b11111000000000,
+							EcIndexBits: 0b110000, // shards 4-5; missing 3
 						},
 						{
 							Id:          3,
-							EcIndexBits: 0b00000000001111,
+							EcIndexBits: 0b001111, // duplicate 0-3
 						},
 					},
 				},
@@ -99,37 +99,21 @@ Found 1/3 over-replicated EC volumes: [3]
 			want: `Found 1/3 under-replicated EC volumes: [2]
 Found 1/3 over-replicated EC volumes: [3]
 
-Shards map for under-replicated EC volume 2 (10/14 shards):
+Shards map for under-replicated EC volume 2 (5/6 shards):
 	00 => [localhost:1111]
 	01 => [localhost:1111]
 	02 => [localhost:1111]
-	03 => [localhost:1111]
-	04 => [localhost:1111]
-	05 is missing
-	06 is missing
-	07 is missing
-	08 is missing
-	09 => [localhost:2222]
-	10 (parity) => [localhost:2222]
-	11 (parity) => [localhost:2222]
-	12 (parity) => [localhost:2222]
-	13 (parity) => [localhost:2222]
+	03 is missing
+	04 (parity) => [localhost:2222]
+	05 (parity) => [localhost:2222]
 
-Shards map for over-replicated EC volume 3 (18/14 shards):
+Shards map for over-replicated EC volume 3 (10/6 shards):
 	00 => [localhost:1111 localhost:2222]
 	01 => [localhost:1111 localhost:2222]
 	02 => [localhost:1111 localhost:2222]
 	03 => [localhost:1111 localhost:2222]
-	04 => [localhost:1111]
-	05 => [localhost:1111]
-	06 => [localhost:1111]
-	07 => [localhost:1111]
-	08 => [localhost:1111]
-	09 => [localhost:1111]
-	10 (parity) => [localhost:1111]
-	11 (parity) => [localhost:1111]
-	12 (parity) => [localhost:1111]
-	13 (parity) => [localhost:1111]
+	04 (parity) => [localhost:1111]
+	05 (parity) => [localhost:1111]
 `,
 		},
 	}
@@ -191,8 +175,8 @@ func TestEcCheckReplicationNoVolumes(t *testing.T) {
 
 // TestEcCheckReplicationUnexpectedShard verifies that a shard id beyond a volume's
 // expected data+parity range is flagged as over-replication and surfaced in the
-// details map, rather than being silently ignored. Volume 20 is a healthy 10+4
-// (shards 0..13 on nodeA) with a stray shard 14 on nodeB.
+// details map, rather than being silently ignored. Volume 20 is a healthy 4+2
+// (shards 0..5 on nodeA) with a stray shard 6 on nodeB.
 func TestEcCheckReplicationUnexpectedShard(t *testing.T) {
 	nodes := []*master_pb.DataNodeInfo{
 		{
@@ -200,7 +184,7 @@ func TestEcCheckReplicationUnexpectedShard(t *testing.T) {
 			DiskInfos: map[string]*master_pb.DiskInfo{
 				"d1": {
 					EcShardInfos: []*master_pb.VolumeEcShardInformationMessage{
-						{Id: 20, EcIndexBits: 0b11111111111111}, // shards 0..13
+						{Id: 20, EcIndexBits: 0b111111}, // shards 0..5
 					},
 				},
 			},
@@ -210,7 +194,7 @@ func TestEcCheckReplicationUnexpectedShard(t *testing.T) {
 			DiskInfos: map[string]*master_pb.DiskInfo{
 				"d2": {
 					EcShardInfos: []*master_pb.VolumeEcShardInformationMessage{
-						{Id: 20, EcIndexBits: 0b100000000000000}, // stray shard 14
+						{Id: 20, EcIndexBits: 0b1000000}, // stray shard 6
 					},
 				},
 			},
@@ -219,22 +203,14 @@ func TestEcCheckReplicationUnexpectedShard(t *testing.T) {
 
 	want := `Found 1/1 over-replicated EC volumes: [20]
 
-Shards map for over-replicated EC volume 20 (15/14 shards):
+Shards map for over-replicated EC volume 20 (7/6 shards):
 	00 => [nodeA]
 	01 => [nodeA]
 	02 => [nodeA]
 	03 => [nodeA]
-	04 => [nodeA]
-	05 => [nodeA]
-	06 => [nodeA]
-	07 => [nodeA]
-	08 => [nodeA]
-	09 => [nodeA]
-	10 (parity) => [nodeA]
-	11 (parity) => [nodeA]
-	12 (parity) => [nodeA]
-	13 (parity) => [nodeA]
-	14 (unexpected) => [nodeB]
+	04 (parity) => [nodeA]
+	05 (parity) => [nodeA]
+	06 (unexpected) => [nodeB]
 `
 
 	var buf bytes.Buffer
@@ -249,7 +225,7 @@ Shards map for over-replicated EC volume 20 (15/14 shards):
 
 // TestEcCheckReplicationMixedAnomalies verifies that a volume with both a missing
 // shard and a duplicated shard is reported in both lists. Volume 30 has shard 5
-// missing everywhere (under-replicated) and shard 0 on two nodes (over-replicated).
+// (parity) missing everywhere (under-replicated) and shard 0 on two nodes (over-replicated).
 func TestEcCheckReplicationMixedAnomalies(t *testing.T) {
 	nodes := []*master_pb.DataNodeInfo{
 		{
@@ -257,7 +233,7 @@ func TestEcCheckReplicationMixedAnomalies(t *testing.T) {
 			DiskInfos: map[string]*master_pb.DiskInfo{
 				"d1": {
 					EcShardInfos: []*master_pb.VolumeEcShardInformationMessage{
-						{Id: 30, EcIndexBits: 0b11111111011111}, // shards 0..13 except 5
+						{Id: 30, EcIndexBits: 0b011111}, // shards 0..4, missing 5
 					},
 				},
 			},
@@ -267,7 +243,7 @@ func TestEcCheckReplicationMixedAnomalies(t *testing.T) {
 			DiskInfos: map[string]*master_pb.DiskInfo{
 				"d2": {
 					EcShardInfos: []*master_pb.VolumeEcShardInformationMessage{
-						{Id: 30, EcIndexBits: 0b00000000000001}, // duplicate of shard 0
+						{Id: 30, EcIndexBits: 0b000001}, // duplicate of shard 0
 					},
 				},
 			},

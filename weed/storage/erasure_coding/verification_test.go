@@ -1,6 +1,7 @@
 package erasure_coding
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -20,8 +21,8 @@ func TestRequireRecoverableShardSet_AllPresent(t *testing.T) {
 }
 
 func TestRequireRecoverableShardSet_DegradedButRecoverable(t *testing.T) {
-	// 12 of 14 shards: enough to reconstruct (>= 10), so the source may be
-	// deleted, but the caller is told to warn and schedule a rebuild.
+	// All but two shards: enough to reconstruct (>= DataShardsCount), so the
+	// source may be deleted, but the caller is told to warn and schedule a rebuild.
 	var bits ShardBits
 	for id := 0; id < TotalShardsCount; id++ {
 		if id == 3 || id == 7 {
@@ -39,7 +40,7 @@ func TestRequireRecoverableShardSet_DegradedButRecoverable(t *testing.T) {
 }
 
 func TestRequireRecoverableShardSet_BelowDataShards(t *testing.T) {
-	// 9 of 14 shards: one short of reconstructable; the source must be kept.
+	// DataShardsCount-1 shards: one short of reconstructable; the source must be kept.
 	var bits ShardBits
 	for id := 0; id < DataShardsCount-1; id++ {
 		bits = bits.Set(ShardId(id))
@@ -52,11 +53,17 @@ func TestRequireRecoverableShardSet_BelowDataShards(t *testing.T) {
 	if !strings.Contains(msg, "volume 42") {
 		t.Errorf("error should name the volume id: %s", msg)
 	}
-	if !strings.Contains(msg, "9/14") {
-		t.Errorf("error should report 9/14 shards present: %s", msg)
+	wantPresent := fmt.Sprintf("%d/%d", DataShardsCount-1, TotalShardsCount)
+	if !strings.Contains(msg, wantPresent) {
+		t.Errorf("error should report %s shards present: %s", wantPresent, msg)
 	}
-	if !strings.Contains(msg, "[9 10 11 12 13]") {
-		t.Errorf("error should list the missing ids: %s", msg)
+	missing := make([]int, 0, ParityShardsCount+1)
+	for id := DataShardsCount - 1; id < TotalShardsCount; id++ {
+		missing = append(missing, id)
+	}
+	wantMissing := fmt.Sprintf("%v", missing)
+	if !strings.Contains(msg, wantMissing) {
+		t.Errorf("error should list the missing ids %s: %s", wantMissing, msg)
 	}
 }
 
@@ -65,8 +72,9 @@ func TestRequireRecoverableShardSet_EmptyBitmap(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for empty bitmap")
 	}
-	if !strings.Contains(err.Error(), "0/14") {
-		t.Errorf("error should report 0/14 shards: %s", err.Error())
+	wantEmpty := fmt.Sprintf("0/%d", TotalShardsCount)
+	if !strings.Contains(err.Error(), wantEmpty) {
+		t.Errorf("error should report %s shards: %s", wantEmpty, err.Error())
 	}
 }
 

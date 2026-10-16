@@ -363,22 +363,22 @@ func TestEcShardsDataSize(t *testing.T) {
 	}{
 		{name: "nil message", msg: nil, dataShards: 0, want: 0},
 		{
-			name: "data shards only",
+			name: "data shards only (default 4+2)",
 			msg: &master_pb.VolumeEcShardInformationMessage{
-				EcIndexBits: (1 << 0) | (1 << 1) | (1 << 9),
+				EcIndexBits: (1 << 0) | (1 << 1) | (1 << 3),
 				ShardSizes:  []int64{1000, 2000, 500},
 			},
-			dataShards: 0, // default 10+4
+			dataShards: 0, // default 4+2: shards 0..3 are data
 			want:       3500,
 		},
 		{
-			name: "mixed data and parity (default 10+4)",
+			name: "mixed data and parity (10+4 explicit)",
 			msg: &master_pb.VolumeEcShardInformationMessage{
 				// shards 7, 8, 9 are data; 10..13 are parity.
 				EcIndexBits: (1 << 7) | (1 << 8) | (1 << 9) | (1 << 10) | (1 << 11) | (1 << 12) | (1 << 13),
 				ShardSizes:  []int64{1000, 1000, 500, 2000, 2000, 2000, 2000},
 			},
-			dataShards: 0,
+			dataShards: 10,
 			want:       2500,
 		},
 		{

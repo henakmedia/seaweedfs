@@ -38,14 +38,15 @@ func (c *commandEcEncode) Help() string {
 	2. apply erasure coding to the volume
 	3. (optionally) re-balance encoded shards across multiple volume servers
 
-	The erasure coding is 10.4. So ideally you have more than 14 volume servers, and you can afford
-	to lose 4 volume servers.
+	The erasure coding is 4.2 (henakmedia fork; upstream is 10.4). Ideally you have 6 volume
+	servers so each of the 6 shards sits on its own node, and you can afford to lose 2 volume
+	servers.
 
-	If the number of volumes are not high, the worst case is that you only have 4 volume servers,
-	and the shards are spread as 4,4,3,3, respectively. You can afford to lose one volume server.
+	If the shards are packed onto fewer servers, the worst case on 3 volume servers is a 2,2,2
+	spread. You can still afford to lose one volume server.
 
-	If you only have less than 4 volume servers, with erasure coding, at least you can afford to
-	have 4 corrupted shard files.
+	If you have fewer than 2 volume servers, with erasure coding you can still afford 2
+	corrupted shard files.
 
 	The -collection parameter is a comma-separated list of collection names, with
 	"*" and "?" wildcards, and regex patterns:

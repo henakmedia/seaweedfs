@@ -11,10 +11,9 @@ import (
 // the EC branch was a no-op, so encoded volumes silently dropped out of
 // collection size accounting.
 func TestCollectCollectionInfoEC(t *testing.T) {
-	// One 10+4 EC volume split across two nodes: 14 shards * 1000 bytes.
-	// Data shards 0..9 live on (nodeA: 0..6, nodeB: 7..9), parity 10..13
-	// on nodeB. Every shard holder reports file_count=100; node-local
-	// delete counts are 2 + 3 = 5.
+	// One 4+2 EC volume split across two nodes: 6 shards * 1000 bytes.
+	// Data shards 0..3 live on (nodeA: 0..2, nodeB: 3), parity 4..5 on nodeB.
+	// Every shard holder reports file_count=100; node-local delete counts are 2 + 3 = 5.
 	nodeA := &master_pb.DataNodeInfo{
 		DiskInfos: map[string]*master_pb.DiskInfo{
 			"disk1": {
@@ -22,8 +21,8 @@ func TestCollectCollectionInfoEC(t *testing.T) {
 					{
 						Id:          42,
 						Collection:  "bucket-a",
-						EcIndexBits: (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (1 << 6),
-						ShardSizes:  []int64{1000, 1000, 1000, 1000, 1000, 1000, 1000},
+						EcIndexBits: (1 << 0) | (1 << 1) | (1 << 2),
+						ShardSizes:  []int64{1000, 1000, 1000},
 						FileCount:   100,
 						DeleteCount: 2,
 					},
@@ -38,8 +37,8 @@ func TestCollectCollectionInfoEC(t *testing.T) {
 					{
 						Id:          42,
 						Collection:  "bucket-a",
-						EcIndexBits: (1 << 7) | (1 << 8) | (1 << 9) | (1 << 10) | (1 << 11) | (1 << 12) | (1 << 13),
-						ShardSizes:  []int64{1000, 1000, 1000, 1000, 1000, 1000, 1000},
+						EcIndexBits: (1 << 3) | (1 << 4) | (1 << 5),
+						ShardSizes:  []int64{1000, 1000, 1000},
 						FileCount:   100,
 						DeleteCount: 3,
 					},
@@ -67,9 +66,9 @@ func TestCollectCollectionInfoEC(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected collection bucket-a in infos, got: %v", infos)
 	}
-	// 10 data shards * 1000 bytes.
-	if cif.Size != 10000 {
-		t.Errorf("Size: got %.0f, want 10000", cif.Size)
+	// 4 data shards * 1000 bytes.
+	if cif.Size != 4000 {
+		t.Errorf("Size: got %.0f, want 4000", cif.Size)
 	}
 	if cif.FileCount != 100 {
 		t.Errorf("FileCount: got %.0f, want 100 (max across reporters)", cif.FileCount)

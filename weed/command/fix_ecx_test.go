@@ -18,7 +18,7 @@ import (
 )
 
 // buildAndEncodeTestEcVolume writes a volume of needleCount needles of about
-// needleSize bytes (.dat + .idx), EC-encodes it into .ec00..ec13, and produces
+// needleSize bytes (.dat + .idx), EC-encodes it into .ec00..ec05 (fork default 4+2), and produces
 // the canonical sorted .ecx. It returns the base path, the canonical .ecx
 // bytes, the original .dat size, and the encode's bitrot protection. A couple
 // of needles are deleted so the .ecx must exclude them (live entries only).
@@ -238,11 +238,11 @@ func TestFixEcxFromShardsMissingShards(t *testing.T) {
 	const volumeId = 11
 	base, canonical, origDatSize, _ := buildAndEncodeTestEcVolume(t, dir, "11", 12, 200)
 
-	// Lose every index/metadata file plus three shards (two data: .ec02, .ec05;
-	// one parity: .ec11), keeping 11 of 14 — enough to reconstruct. The highest
-	// shard (.ec13) is kept so the default 10+4 ratio is inferred without a .vif.
+	// Lose every index/metadata file plus two shards (one data: .ec02, one
+	// parity: .ec04), keeping 4 of 6 — enough to reconstruct. The highest
+	// shard (.ec05) is kept so the default 4+2 ratio is inferred without a .vif.
 	for _, ext := range []string{".ecx", ".ecj", ".idx", ".dat", ".vif",
-		erasure_coding.ToExt(2), erasure_coding.ToExt(5), erasure_coding.ToExt(11)} {
+		erasure_coding.ToExt(2), erasure_coding.ToExt(4)} {
 		if err := os.Remove(base + ext); err != nil && !os.IsNotExist(err) {
 			t.Fatalf("remove %s: %v", base+ext, err)
 		}
@@ -259,7 +259,7 @@ func TestFixEcxFromShardsMissingShards(t *testing.T) {
 	}
 
 	// The missing shards must have been reconstructed on disk.
-	for _, idx := range []int{2, 5, 11} {
+	for _, idx := range []int{2, 4} {
 		if info, err := os.Stat(base + erasure_coding.ToExt(idx)); err != nil || info.Size() == 0 {
 			t.Fatalf("missing shard %d was not reconstructed: err=%v", idx, err)
 		}
